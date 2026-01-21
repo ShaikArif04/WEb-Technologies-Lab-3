@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Multi-Stage Workflow Engine</title>
+    <style>
+        :root { --primary: #4a90e2; --success: #27ae60; --error: #e74c3c; --bg: #f5f7fa; }
+        body { font-family: 'Inter', sans-serif; background: var(--bg); display: flex; justify-content: center; padding: 40px; }
+        .workflow-card { background: white; width: 500px; padding: 30px; border-radius: 12px; box-shadow: 0 10px 25px rgba(0,0,0,0.05); }
+        
+        /* Progress Bar */
+        .progress-container { height: 8px; background: #eee; border-radius: 4px; margin-bottom: 30px; overflow: hidden; }
+        #progressBar { height: 100%; width: 25%; background: var(--primary); transition: width 0.4s ease; }
+        
+        /* Stages Visibility */
+        .form-stage { display: none; }
+        .form-stage.active { display: block; animation: fadeIn 0.3s ease; }
+        
+        .input-group { margin-bottom: 20px; }
+        label { display: block; margin-bottom: 8px; font-weight: 600; font-size: 0.9em; }
+        input, select { width: 100%; padding: 12px; border: 1.5px solid #ddd; border-radius: 6px; box-sizing: border-box; }
+        .error-msg { color: var(--error); font-size: 0.8em; margin-top: 5px; min-height: 1em; }
+        
+        .nav-buttons { display: flex; justify-content: space-between; margin-top: 30px; }
+        button { padding: 10px 25px; border-radius: 6px; border: none; cursor: pointer; font-weight: 600; transition: 0.2s; }
+        .btn-next { background: var(--primary); color: white; }
+        .btn-prev { background: #ddd; color: #555; }
+        button:disabled { opacity: 0.5; cursor: not-allowed; }
+
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+    </style>
+</head>
+<body>
+
+<div class="workflow-card">
+    <div class="progress-container"><div id="progressBar"></div></div>
+    <h3 id="stageTitle">Stage 1: Account Details</h3>
+
+    <form id="workflowForm" novalidate>
+        <div class="form-stage active" data-step="1">
+            <div class="input-group">
+                <label>Username</label>
+                <input type="text" id="username" placeholder="Min 5 characters">
+                <div class="error-msg" id="err-username"></div>
+            </div>
+            <div class="input-group">
+                <label>Email Address</label>
+                <input type="email" id="email" placeholder="email@domain.com">
+                <div class="error-msg" id="err-email"></div>
+            </div>
+        </div>
+
+        <div class="form-stage" data-step="2">
+            <div class="input-group">
+                <label>Full Name</label>
+                <input type="text" id="fullname">
+                <div class="error-msg" id="err-fullname"></div>
+            </div>
+            <div class="input-group">
+                <label>Age</label>
+                <input type="number" id="age">
+                <div class="error-msg" id="err-age"></div>
+            </div>
+        </div>
+
+        <div class="form-stage" data-step="3">
+            <div class="input-group">
+                <label>Industry</label>
+                <select id="industry">
+                    <option value="">Select...</option>
+                    <option value="tech">Technology</option>
+                    <option value="health">Healthcare</option>
+                    <option value="finance">Finance</option>
+                </select>
+                <div class="error-msg" id="err-industry"></div>
+            </div>
+        </div>
+
+        <div class="form-stage" data-step="4">
+            <div class="input-group">
+                <label>Confirm Terms & Conditions</label>
+                <div style="display:flex; align-items:center; gap:10px;">
+                    <input type="checkbox" id="terms" style="width:auto;"> I agree to the policy.
+                </div>
+                <div class="error-msg" id="err-terms"></div>
+            </div>
+        </div>
+
+        <div class="nav-buttons">
+            <button type="button" class="btn-prev" id="prevBtn" disabled>Previous</button>
+            <button type="button" class="btn-next" id="nextBtn">Next Step</button>
+        </div>
+    </form>
+</div>
+
+<script>
+    // 1. Storage & State
+    let currentStep = 1;
+    const totalSteps = 4;
+    const userData = {}; // Temporary JavaScript variables for storage
+
+    const stages = document.querySelectorAll('.form-stage');
+    const progressBar = document.getElementById('progressBar');
+    const nextBtn = document.getElementById('nextBtn');
+    const prevBtn = document.getElementById('prevBtn');
+
+    // 2. Validation Rules for each stage
+    const validators = {
+        1: () => {
+            const user = document.getElementById('username').value;
+            const email = document.getElementById('email').value;
+            let errors = 0;
+
+            if (user.length < 5) { showError('username', 'Min 5 characters required'); errors++; }
+            else { clearError('username'); userData.username = user; }
+
+            if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { showError('email', 'Invalid email format'); errors++; }
+            else { clearError('email'); userData.email = email; }
+
+            return errors === 0;
+        },
+        2: () => {
+            const name = document.getElementById('fullname').value;
+            const age = parseInt(document.getElementById('age').value);
+            let errors = 0;
+
+            if (name === "") { showError('fullname', 'Name is required'); errors++; }
+            else { clearError('fullname'); userData.fullname = name; }
+
+            if (isNaN(age) || age < 18) { showError('age', 'Must be at least 18'); errors++; }
+            else { clearError('age'); userData.age = age; }
+
+            return errors === 0;
+        },
+        3: () => {
+            const ind = document.getElementById('industry').value;
+            if (!ind) { showError('industry', 'Please select an industry'); return false; }
+            clearError('industry');
+            userData.industry = ind;
+            return true;
+        },
+        4: () => {
+            const terms = document.getElementById('terms').checked;
+            if (!terms) { showError('terms', 'Agreement required'); return false; }
+            clearError('terms');
+            userData.terms = true;
+            return true;
+        }
+    };
+
+    // 3, 4, & 5. Navigation Control & DOM Manipulation
+    function updateDisplay() {
+        stages.forEach(s => s.classList.remove('active'));
+        document.querySelector(`[data-step="${currentStep}"]`).classList.add('active');
+        
+        // Progress Bar Calculation
+        progressBar.style.width = `${(currentStep / totalSteps) * 100}%`;
+        
+        // Button Logic
+        prevBtn.disabled = currentStep === 1;
+        nextBtn.innerText = currentStep === totalSteps ? 'Finish & Submit' : 'Next Step';
+        
+        const titles = ["Account Details", "Personal Info", "Professional Info", "Confirmation"];
+        document.getElementById('stageTitle').innerText = `Stage ${currentStep}: ${titles[currentStep-1]}`;
+    }
+
+    nextBtn.addEventListener('click', () => {
+        // Prevent navigation if current stage fails validation
+        if (!validators[currentStep]()) return;
+
+        if (currentStep < totalSteps) {
+            currentStep++;
+            updateDisplay();
+        } else {
+            // Final submission
+            console.log("Form Workflow Complete. Data Stored:", userData);
+            alert("Workflow Finished Successfully!");
+        }
+    });
+
+    prevBtn.addEventListener('click', () => {
+        if (currentStep > 1) {
+            currentStep--;
+            updateDisplay();
+        }
+    });
+
+    function showError(id, msg) {
+        document.getElementById(`err-${id}`).innerText = msg;
+        document.getElementById(id).style.borderColor = 'var(--error)';
+    }
+
+    function clearError(id) {
+        document.getElementById(`err-${id}`).innerText = '';
+        document.getElementById(id).style.borderColor = '#ddd';
+    }
+
+    // Initial load
+    updateDisplay();
+</script>
+
+</body>
+</html>

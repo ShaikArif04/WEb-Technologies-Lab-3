@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Intelligent Shopping Cart</title>
+    <style>
+        :root { --primary: #2ecc71; --danger: #e74c3c; --bg: #f8f9fa; }
+        body { font-family: 'Segoe UI', sans-serif; background: var(--bg); display: flex; justify-content: center; padding: 20px; }
+        .cart-wrapper { background: white; width: 450px; padding: 25px; border-radius: 12px; box-shadow: 0 5px 20px rgba(0,0,0,0.05); }
+        .item-row { display: flex; justify-content: space-between; align-items: center; padding: 12px 0; border-bottom: 1px solid #eee; }
+        .item-info { flex-grow: 1; }
+        .qty-input { width: 50px; padding: 5px; margin-right: 10px; }
+        .price-summary { background: #fdfdfd; padding: 15px; border-radius: 8px; margin-top: 20px; border: 1px dashed #ccc; }
+        .discount-applied { color: var(--primary); font-size: 0.85em; font-weight: bold; margin: 4px 0; }
+        .coupon-box { display: flex; gap: 8px; margin-top: 15px; }
+        input[type="text"] { flex-grow: 1; padding: 8px; border: 1px solid #ddd; border-radius: 4px; }
+        button { cursor: pointer; border: none; border-radius: 4px; padding: 8px 12px; transition: 0.2s; }
+        .btn-remove { background: var(--danger); color: white; }
+        .btn-apply { background: #34495e; color: white; }
+    </style>
+</head>
+<body>
+
+<div class="cart-wrapper">
+    <h2>Smart Cart</h2>
+    <div id="cartItems"></div>
+
+    <div class="coupon-box">
+        <input type="text" id="couponInput" placeholder="Coupon (e.g. EXTRA10-OFF)">
+        <button class="btn-apply" onclick="applyCoupon()">Apply</button>
+    </div>
+
+    <div class="price-summary">
+        <div>Subtotal: <span id="subtotalDisplay">$0.00</span></div>
+        <div id="discountList"></div>
+        <hr>
+        <div style="font-size: 1.2em; font-weight: bold;">Total: <span id="totalDisplay">$0.00</span></div>
+    </div>
+</div>
+
+<script>
+    // 1. Requirement: Array of products
+    let cart = [
+        { id: 101, name: "Mechanical Keyboard", price: 120, qty: 1, category: "Tech" },
+        { id: 102, name: "Notebook", price: 5, qty: 10, category: "Office" },
+        { id: 103, name: "USB-C Cable", price: 25, qty: 1, category: "Tech" }
+    ];
+
+    let couponPercent = 0;
+
+    // 2 & 6. Requirement: Update quantities and display in real time
+    function renderCart() {
+        const container = document.getElementById('cartItems');
+        container.innerHTML = '';
+
+        cart.forEach((item, index) => {
+            const div = document.createElement('div');
+            div.className = 'item-row';
+            div.innerHTML = `
+                <div class="item-info">
+                    <strong>${item.name}</strong><br>
+                    <small>$${item.price} | ${item.category}</small>
+                </div>
+                <div>
+                    <input type="number" class="qty-input" value="${item.qty}" min="1" 
+                           onchange="updateQty(${index}, this.value)">
+                    <button class="btn-remove" onclick="removeItem(${index})">×</button>
+                </div>
+            `;
+            container.appendChild(div);
+        });
+        calculateTotals();
+    }
+
+    function updateQty(index, val) {
+        cart[index].qty = parseInt(val) || 1;
+        renderCart();
+    }
+
+    function removeItem(index) {
+        cart.splice(index, 1);
+        renderCart();
+    }
+
+    // 3 & 5. Requirement: Implement bulk/category discounts and update prices
+    function calculateTotals() {
+        let subtotal = 0;
+        let runningTotal = 0;
+        let appliedDiscounts = [];
+
+        cart.forEach(item => {
+            let linePrice = item.price * item.qty;
+            subtotal += linePrice;
+
+            // Rule 1: Bulk Discount (10% off specific item if qty > 5)
+            if (item.qty > 5) {
+                let bulkSaving = linePrice * 0.10;
+                linePrice -= bulkSaving;
+                appliedDiscounts.push(`Bulk Discount (${item.name}): -$${bulkSaving.toFixed(2)}`);
+            }
+
+            // Rule 2: Category Discount ($15 off Tech items if line total > $100)
+            if (item.category === "Tech" && linePrice > 100) {
+                linePrice -= 15;
+                appliedDiscounts.push(`Tech Category Bonus: -$15.00`);
+            }
+
+            runningTotal += linePrice;
+        });
+
+        // Rule 3: Time of Day Discount (5% off total if during "Happy Hour" 4PM-6PM)
+        const currentHour = new Date().getHours();
+        if (currentHour >= 16 && currentHour <= 18) {
+            let happySaving = runningTotal * 0.05;
+            runningTotal -= happySaving;
+            appliedDiscounts.push(`Happy Hour (4-6PM) 5%: -$${happySaving.toFixed(2)}`);
+        }
+
+        // Apply coupon if valid
+        if (couponPercent > 0) {
+            let couponSaving = runningTotal * (couponPercent / 100);
+            runningTotal -= couponSaving;
+            appliedDiscounts.push(`Coupon (${couponPercent}%): -$${couponSaving.toFixed(2)}`);
+        }
+
+        updateUI(subtotal, runningTotal, appliedDiscounts);
+    }
+
+    function updateUI(sub, total, logs) {
+        document.getElementById('subtotalDisplay').innerText = `$${sub.toFixed(2)}`;
+        document.getElementById('totalDisplay').innerText = `$${total.toFixed(2)}`;
+        
+        const list = document.getElementById('discountList');
+        list.innerHTML = logs.map(msg => `<div class="discount-applied">${msg}</div>`).join('');
+    }
+
+    // 4. Requirement: String methods to parse and validate coupon codes
+    function applyCoupon() {
+        const input = document.getElementById('couponInput').value.trim().toUpperCase();
+        
+        // Rules: Starts with 'EXTRA', ends with 'OFF', contains a '-'
+        if (input.startsWith("EXTRA") && input.endsWith("OFF") && input.includes("-")) {
+            // Extract percentage: "EXTRA20-OFF" -> "20"
+            const percentStr = input.substring(5, input.indexOf("-"));
+            const percent = parseInt(percentStr);
+
+            if (!isNaN(percent) && percent > 0 && percent <= 50) {
+                couponPercent = percent;
+                alert(`Coupon Applied: ${percent}% off!`);
+            } else {
+                alert("Invalid percentage in coupon.");
+                couponPercent = 0;
+            }
+        } else {
+            alert("Invalid Coupon Format. Use e.g., EXTRA15-OFF");
+            couponPercent = 0;
+        }
+        calculateTotals();
+    }
+
+    // Initial load
+    renderCart();
+</script>
+
+</body>
+</html>

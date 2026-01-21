@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Adaptive Registration System</title>
+    <style>
+        :root { --error: #e74c3c; --success: #27ae60; --primary: #3498db; }
+        body { font-family: 'Segoe UI', sans-serif; background: #f4f7f6; display: flex; justify-content: center; padding: 20px; }
+        .form-card { background: white; width: 400px; padding: 25px; border-radius: 10px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
+        .input-group { margin-bottom: 15px; }
+        label { display: block; margin-bottom: 5px; font-weight: 600; font-size: 0.9em; }
+        input, select { width: 100%; padding: 10px; border: 1.5px solid #ddd; border-radius: 5px; box-sizing: border-box; outline: none; }
+        
+        /* DOM Highlighting */
+        .invalid { border-color: var(--error); background-color: #fffafa; }
+        .error-hint { color: var(--error); font-size: 0.75em; margin-top: 4px; min-height: 1em; }
+        
+        button { width: 100%; padding: 12px; background: var(--primary); color: white; border: none; border-radius: 5px; font-weight: bold; cursor: pointer; margin-top: 10px; }
+        button:disabled { background: #ccc; cursor: not-allowed; }
+    </style>
+</head>
+<body>
+
+<div class="form-card">
+    <h2>User Registration</h2>
+    <form id="regForm" novalidate>
+        <div class="input-group">
+            <label>Full Name</label>
+            <input type="text" id="name" placeholder="Enter name">
+            <div class="error-hint" id="err-name"></div>
+        </div>
+
+        <div class="input-group">
+            <label>Email Address</label>
+            <input type="email" id="email" placeholder="example@domain.com">
+            <div class="error-hint" id="err-email"></div>
+        </div>
+
+        <div class="input-group">
+            <label>Role</label>
+            <select id="role">
+                <option value="Student">Student</option>
+                <option value="Teacher">Teacher</option>
+                <option value="Admin">Admin</option>
+            </select>
+        </div>
+
+        <div class="input-group" id="skillsWrapper">
+            <label>Skills</label>
+            <input type="text" id="skills" placeholder="e.g. Coding, Design">
+            <div class="error-hint" id="err-skills"></div>
+        </div>
+
+        <div class="input-group">
+            <label>Age</label>
+            <input type="number" id="age" placeholder="Enter age">
+            <div class="error-hint" id="err-age"></div>
+        </div>
+
+        <div class="input-group">
+            <label>Password</label>
+            <input type="password" id="password" placeholder="Password">
+            <div class="error-hint" id="err-password"></div>
+        </div>
+
+        <div class="input-group">
+            <label>Confirm Password</label>
+            <input type="password" id="confirmPassword" placeholder="Confirm password">
+            <div class="error-hint" id="err-confirmPassword"></div>
+        </div>
+
+        <button type="submit" id="submitBtn">Create Account</button>
+    </form>
+</div>
+
+<script>
+    // 1. Requirement: Dynamic Rule Configuration
+    const roleRules = {
+        Student: { minAge: 13, pswdRegex: /.{6,}/, hint: "Min 6 characters" },
+        Teacher: { minAge: 21, pswdRegex: /.{8,}/, hint: "Min 8 characters" },
+        Admin:   { minAge: 18, pswdRegex: /^(?=.*[A-Z])(?=.*[0-9]).{10,}$/, hint: "Min 10 chars, 1 Uppercase, 1 Number" }
+    };
+
+    const form = document.getElementById('regForm');
+    const roleSelect = document.getElementById('role');
+    const submitBtn = document.getElementById('submitBtn');
+
+    // 2. Requirement: Dynamic field visibility (Show/Hide Skills)
+    roleSelect.addEventListener('change', () => {
+        const skillsWrapper = document.getElementById('skillsWrapper');
+        skillsWrapper.style.display = (roleSelect.value === 'Admin') ? 'none' : 'block';
+        validateAll(); // Re-validate immediately on role change
+    });
+
+    // 3 & 4. Requirement: Validation Functions & Feedback
+    function validateAll() {
+        const role = roleSelect.value;
+        const rules = roleRules[role];
+        let isFormValid = true;
+
+        // Validation Checks
+        const checks = [
+            { id: 'name', valid: document.getElementById('name').value.trim() !== "", msg: "Name is required" },
+            { id: 'email', valid: /^[^\s@]+@[^\s@]+\.(com|edu|org)$/.test(document.getElementById('email').value), msg: "Valid .com, .edu, or .org email required" },
+            { id: 'age', valid: parseInt(document.getElementById('age').value) >= rules.minAge, msg: `Must be at least ${rules.minAge} for ${role}` },
+            { id: 'password', valid: rules.pswdRegex.test(document.getElementById('password').value), msg: rules.hint },
+            { id: 'confirmPassword', valid: document.getElementById('confirmPassword').value === document.getElementById('password').value && document.getElementById('password').value !== "", msg: "Passwords must match" }
+        ];
+
+        checks.forEach(check => {
+            const input = document.getElementById(check.id);
+            const hint = document.getElementById(`err-${check.id}`);
+            
+            if (!check.valid) {
+                // 5. Requirement: DOM Manipulation for Feedback
+                input.classList.add('invalid');
+                hint.innerText = check.msg;
+                isFormValid = false;
+            } else {
+                input.classList.remove('invalid');
+                hint.innerText = "";
+            }
+        });
+
+        // 6. Requirement: Prevent Submission (Disable button)
+        submitBtn.disabled = !isFormValid;
+        return isFormValid;
+    }
+
+    // Trigger validation in real-time on input
+    form.addEventListener('input', validateAll);
+
+    form.addEventListener('submit', (e) => {
+        e.preventDefault();
+        if (validateAll()) {
+            alert("Success! Form is valid for role: " + roleSelect.value);
+        }
+    });
+
+    // Initial run
+    validateAll();
+</script>
+
+</body>
+</html>
